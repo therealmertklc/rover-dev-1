@@ -1,0 +1,100 @@
+#include "stm32f4xx_hal.h"
+
+TIM_HandleTypeDef htim4;
+GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+// Buton pinleri tanımlamaları
+#define BUTTON_1_PIN GPIO_PIN_0
+#define BUTTON_2_PIN GPIO_PIN_1
+#define BUTTON_3_PIN GPIO_PIN_2
+#define BUTTON_4_PIN GPIO_PIN_3
+#define BUTTON_5_PIN GPIO_PIN_4
+
+// Motor pinleri tanımlamaları
+#define MOTOR_FORWARD_PIN GPIO_PIN_5
+#define MOTOR_BACKWARD_PIN GPIO_PIN_6
+
+// Duty cycle değerleri
+#define DUTY_CYCLE_50_PERCENT 500  // PWM'in toplam periyotu 1000 olduğu için %50 duty cycle için 500
+#define DUTY_CYCLE_100_PERCENT 1000
+
+// Fonksiyon prototipleri
+void configureGPIO(void);
+void configurePWM(void);
+
+int main(void) {
+  // HAL kütüphanesi başlatılır
+  HAL_Init();
+
+  // Sistem taimarları başlatılır
+  HAL_InitTick(TICK_INT_PRIORITY);
+
+  // SystemClock_Config fonksiyonu ile sistem clock konfigürasyonları yapılmalıdır
+
+  // GPIO ve PWM konfigürasyonları yapılır
+  configureGPIO();
+  configurePWM();
+
+  // Ana döngü
+  while (1) {
+    // Her buton için durumu kontrol et
+    if (HAL_GPIO_ReadPin(GPIOA, BUTTON_1_PIN) == GPIO_PIN_RESET) {
+      // Buton 1: Geriye doğru maksimum voltaj
+      HAL_GPIO_WritePin(GPIOA, MOTOR_FORWARD_PIN, GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(GPIOA, MOTOR_BACKWARD_PIN, GPIO_PIN_SET);
+    } else if (HAL_GPIO_ReadPin(GPIOA, BUTTON_2_PIN) == GPIO_PIN_RESET) {
+      // Buton 2: Geriye doğru 50% duty cycle
+      HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
+      HAL_TIM_PWM_SetCompare(&htim4, TIM_CHANNEL_1, DUTY_CYCLE_50_PERCENT);
+    } else if (HAL_GPIO_ReadPin(GPIOA, BUTTON_3_PIN) == GPIO_PIN_RESET) {
+      // Buton 3: Dur
+      HAL_GPIO_WritePin(GPIOA, MOTOR_FORWARD_PIN, GPIO_PIN_RESET);
+      HAL_GPIO_WritePin(GPIOA, MOTOR_BACKWARD_PIN, GPIO_PIN_RESET);
+      HAL_TIM_PWM_Stop(&htim4, TIM_CHANNEL_1);
+    } else if (HAL_GPIO_ReadPin(GPIOA, BUTTON_4_PIN) == GPIO_PIN_RESET) {
+      // Buton 4: İleriye doğru 50% duty cycle
+      HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
+      HAL_TIM_PWM_SetCompare(&htim4, TIM_CHANNEL_1, DUTY_CYCLE_50_PERCENT);
+    } else if (HAL_GPIO_ReadPin(GPIOA, BUTTON_5_PIN) == GPIO_PIN_RESET) {
+      // Buton 5: İleriye doğru maksimum voltaj
+      HAL_GPIO_WritePin(GPIOA, MOTOR_FORWARD_PIN, GPIO_PIN_SET);
+      HAL_GPIO_WritePin(GPIOA, MOTOR_BACKWARD_PIN, GPIO_PIN_RESET);
+    }
+  }
+}
+
+void configureGPIO(void) {
+  // GPIO modülü başlatılır
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  // Buton pinleri giriş olarak ayarlanır
+  GPIO_InitStruct.Pin = BUTTON_1_PIN | BUTTON_2_PIN | BUTTON_3_PIN | BUTTON_4_PIN | BUTTON_5_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  // Motor pinleri çıkış olarak ayarlanır
+  GPIO_InitStruct.Pin = MOTOR_FORWARD_PIN | MOTOR_BACKWARD_PIN;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+}
+
+void configurePWM(void) {
+  // TIM4 timer konfigürasyonu yapılır
+  __HAL_RCC_TIM4_CLK_ENABLE();
+  htim4.Instance = TIM4;
+  htim4.Init.Prescaler = 84 - 1;  // Burada uygun bir prescaler değeri kullanılmalıdır
+  htim4.Init.Period = 1000 - 1;   // Burada uygun bir period değeri kullanılmalıdır
+  htim4.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim4.Init.CounterMode = TIM_COUNTERMODE_UP;
+  HAL_TIM_PWM_Init(&htim4);
+
+  // PWM konfigürasyonları yapılır
+  TIM_OC_InitTypeDef sConfigOC = {0};
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;             // Başlangıçta pulse sıfır olmalıdır
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  HAL_TIM_PWM_ConfigChannel(&htim4, &sConfigOC, TIM_CHANNEL_1);
+}
